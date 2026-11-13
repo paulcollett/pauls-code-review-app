@@ -1,0 +1,52 @@
+// Copy this to config.jsonc (git-ignored) and edit it there. Without a config.jsonc, code-diff runs on this file as is.
+// It's JSON plus comments and trailing commas.
+{
+  // The port the server listens on; PORT overrides it.
+  "port": 4321,
+
+  // Folders scanned for checkouts on this Mac: every repo directly inside them, and its worktrees.
+  "scan": ["~/code"],
+
+  // SSH hosts with checkouts of their own, scanned like `scan`. A remote's repo values read name:path, e.g.
+  // ?repo=vm:~/code/my-app. The first one is also where "new vm agent" starts Claude.
+  "remotes": {
+    // "vm": { "host": "dev@my-vm.example.ts.net", "scan": "~/code" },
+  },
+
+  // The terminal the Claude buttons open sessions in: { "type": "mac-terminal" } (Terminal.app, the default when left
+  // out), { "type": "ghostty" }, or { "type": "rex", "path": "<its rex CLI>" }, e.g.
+  // { "type": "rex", "path": "/Applications/Rex Beta.app/Contents/Helpers/Rex Server.rex/Contents/MacOS/rex" }.
+  "terminal": { "type": "mac-terminal" },
+
+  // The dependency panel beside the file tree: changed files grouped under what they import. Hidden when false.
+  "experimental_depHierarchyPanel": false,
+
+  // A regex for a prefix your branch names share, e.g. "agent/issue-\\d+-". The PR panel shows it at the end of the
+  // name, muted, and PR worktrees are named without it.
+  // "prPanelBranchStrip": "agent/issue-\\d+-",
+
+  // PR labels, each with a color: each gets a tab in the PR panel, and its PRs are tinted that color.
+  // "prPanelLabels": { "ready-for-review": "#c678dd" },
+
+  // The folder, beside each clone, that PR and new-agent worktrees go in.
+  "worktreesFolder": ".worktrees",
+
+  // How VM Claude gets your GitHub token: "sources" is a file on the VM that sets it and "name" the env var it's in.
+  // The session runs gh with that token and stops unless gh is your login. Leave it out to use gh there as it is.
+  // "githubTokenToVM": { "sources": "~/.bashrc", "name": "GH_TOKEN" },
+
+  // Test files, hidden until "Show tests": globs matched from any folder, like .gitignore. * stays within a name and **
+  // spans folders; one ending in /** or /**/* also closes those folders in the file tree.
+  "tests": ["__tests__/**/*", "*.test.*"],
+
+  // What Claude sessions start with. {name} is a value or another prompt here: {repo} (owner/name), {login} (your GitHub
+  // login) and {base} (the default branch) everywhere, plus {number}, {title}, {url} and {branch} of the PR for a PR's session.
+  // A local session without a PR starts with no prompt.
+  "prompts": {
+    "localPr": "You're in a worktree of {repo} on {branch}, the branch of PR #{number} \"{title}\" ({url}). {briefing}",
+    "vmPr": "You're on a remote machine in a worktree of {repo} on {branch}, the branch of PR #{number} \"{title}\" ({url}). git and gh act as {login}. {briefing} {credentials}",
+    "vmNew": "You're on a remote machine in a fresh worktree of {repo}, detached at {base}. git and gh act as {login}. When I give you a task, start its branch from {base} before changing anything, named agent/<what it changes> in 2 to 5 lowercase words joined by dashes, like agent/fix-login-redirect. Don't commit or push until asked. {credentials}",
+    "briefing": "Read the PR first: its description, conversation comments, reviews and line comments (gh pr view {number} --comments, and gh api repos/{repo}/pulls/{number}/comments). Then sum up where it stands: what's done, open review feedback, and anything unanswered. Wait for instructions after that, and don't commit or push until asked.",
+    "credentials": "Use git and gh as {login}. If a push or any GitHub call is refused, tell me why and ask before switching to another token or account.",
+  },
+}

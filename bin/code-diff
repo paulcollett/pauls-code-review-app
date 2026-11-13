@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Starts the code-diff server unless one already answers, then opens a diff page.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: code-diff [--repo PATH] [--from REF] [--to REF] [--base merge|direct] [--no-open]
+
+  --repo PATH   Any checkout of the repo, or NAME:PATH for a config.jsonc remote
+                such as vm:~/code/my-app (default: current directory)
+  --from REF    Branch, origin/branch, commit or #PR (default: files on disk)
+  --to REF      Branch to compare against (default: origin/HEAD)
+  --base MODE   merge (PR-style, default) or direct (branch tip)
+  --no-open     Print the URL without opening a browser
+EOF
+}
+
+for cmd in node git curl; do
+  command -v "$cmd" >/dev/null || { echo "code-diff needs \`$cmd\`, which isn't installed or isn't on your PATH. Ask Claude to set it up." >&2; exit 1; }
+done
+
+dir="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+port="${PORT:-$(cd "$dir" && node --input-type=module -e 'console.log((await import("./load-config.ts")).config.port)')}"
+log="${TMPDIR:-/tmp}/code-diff.log"
+repo="$PWD"
+from=""
+to=""
+base=""
+open_page=1
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo) repo="$2"; shift 2 ;;
+    --from) from="$2"; shift 2 ;;
+    --to) to="$2"; shift 2 ;;
+    --base) base="$2"; shift 2 ;;
+    --no-open) open_page=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 1 ;;
+  esac
+done
+
+up() { curl -sf "http://localhost:$port/api/health" 2>/dev/null | grep -q code-diff; }
+
+if ! up; then
+  (cd "$dir" && PORT="$port" nohup node server.ts >>"$log" 2>&1 &)
+  for _ in $(seq 50); do up && break; sleep 0.1; done
+  up || { echo "code-diff did not start on port $port; see $log" >&2; exit 1; }
+fi
+
+# The repo dropdown lists checkouts as ~/… toplevels, so match that form; remote NAME:PATH values pass through.
+case "$repo" in
+  [A-Za-z0-9_-]*:*) ;;
+  *)
+    repo="$(git -C "$repo" rev-parse --show-toplevel)"
+    case "$repo" in "$HOME"/*) repo="~${repo#"$HOME"}" ;; esac
+    ;;
+esac
+
+args=(--data-urlencode "repo=$repo")
+[ -n "$from" ] && args+=(--data-urlencode "from=$from")
+[ -n "$to" ] && args+=(--data-urlencode "to=$to")
+[ -n "$base" ] && args+=(--data-urlencode "base=$base")
+url="$(curl -Gs -o /dev/null -w '%{url_effective}' "${args[@]}" "http://localhost:$port/")"
+
+echo "$url"
+if [ "$open_page" = 1 ]; then open "$url"; fi

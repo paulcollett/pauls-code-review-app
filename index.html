@@ -1,0 +1,1306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Diff</title>
+<link rel="icon" type="image/svg+xml" href="https://api.iconify.design/octicon/git-compare-16.svg?color=%2398c379">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap">
+<link rel="stylesheet" id="hljs-light" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css" disabled>
+<style>
+  /* Dark is VS Code's One Monokai: UI colors from its theme, diff lines from VS Code's defaults. */
+  :root {
+    color-scheme: dark;
+    --bg: #282c34; --fg: #abb2bf; --muted: #7f848e; --border: #181a1f; --panel: #21252b;
+    --sidebar: #21252b; --input: #1d1f23; --hover: #292d35; --selected: #2c313a; --line-num: #495162;
+    --add-bg: #9bb9551a; --add-num: #9bb95533; --del-bg: #ff00001a; --del-num: #ff000033;
+    --add-word: #00809b66; --del-word: #ff000044;
+    --hunk-bg: #2c313a; --accent: #528bff;
+    --added: #98c379; --removed: #e06c75; --modified: #e5c07b; --renamed: #c678dd;
+    --mono: Menlo, Monaco, "Courier New", monospace;
+  }
+  /* A toggle sets data-theme="light" on <html> and enables the hljs-light link. */
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0; --panel: #f6f8fa;
+    --sidebar: #ffffff; --input: #f6f8fa; --hover: #f6f8fa; --selected: #ddf4ff; --line-num: #59636e;
+    --add-bg: #dafbe1; --add-num: #ccffd8; --del-bg: #ffebe9; --del-num: #ffd7d5;
+    --add-word: #aceebb; --del-word: #ffcecb;
+    --hunk-bg: #ddf4ff; --accent: #0969da;
+    --added: #1a7f37; --removed: #d1242f; --modified: #9a6700; --renamed: #8250df;
+  }
+  :root:not([data-theme="light"]) {
+    .hljs-comment, .hljs-quote { color: #676f7d; }
+    .hljs-string, .hljs-regexp { color: #e5c07b; }
+    .hljs-variable.constant_ { color: #61afef; }
+    .hljs-number { color: #c678dd; }
+    .hljs-literal, .hljs-built_in, .hljs-type, .hljs-selector-class, .hljs-selector-id, .hljs-selector-pseudo, .hljs-template-variable { color: #56b6c2; }
+    .hljs-keyword, .hljs-operator, .hljs-variable.language_, .hljs-tag, .hljs-name, .hljs-selector-tag, .hljs-deletion { color: #e06c75; }
+    .hljs-title.class_, .hljs-meta, .hljs-symbol, .hljs-link, .hljs-bullet { color: #61afef; }
+    .hljs-title.function_, .hljs-title.class_.inherited__, .hljs-attr, .hljs-addition { color: #98c379; }
+    .hljs-params { color: #d19a66; font-style: italic; }
+    .hljs-property, .hljs-attribute, .hljs-subst, .hljs-punctuation { color: #abb2bf; }
+    .hljs-section { color: #e06c75; font-weight: bold; }
+    .hljs-emphasis { font-style: italic; }
+    .hljs-strong { font-weight: bold; }
+  }
+  * { box-sizing: border-box; scrollbar-width: none; }
+  ::-webkit-scrollbar { display: none; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 var(--mono); }
+  :is(header, #stats, #pr) { font-family: Inter, system-ui, sans-serif; }
+  #pr .markdown :is(code, pre) { font-family: var(--mono); }
+
+  header { position: sticky; top: 0; z-index: 3; background: var(--bg); border-bottom: 1px solid var(--border); }
+  form { display: flex; flex-wrap: wrap; align-items: stretch; }
+  .cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; padding: 8px 14px; border-right: 1px solid var(--border); }
+  .cell-label { font-size: 11px; color: var(--muted); }
+  .cell input, .cell select { padding: 0; border: 0; border-radius: 0; background: none; outline: none; }
+  input, select, button { font: inherit; color: inherit; background: var(--input); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+  #picker-toggle { flex: 1 1 560px; display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 14px 8px 16px; border: 0; border-right: 1px solid var(--border); border-radius: 0; background: var(--panel); text-align: left; }
+  #picker-toggle:hover { background: var(--hover); }
+  #picker-toggle.has-dirty { background: color-mix(in srgb, var(--modified) 9%, var(--panel)); }
+  #picker-toggle.has-mine { background: color-mix(in srgb, var(--modified) 9%, var(--panel)); }
+  #picker-toggle .cell-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  #picker-toggle .i-chevron { color: var(--muted); }
+  #picker-toggle.open .i-chevron { transform: rotate(180deg); }
+  .i-chevron { --icon: url(https://api.iconify.design/octicon/chevron-down-16.svg); }
+  #picker { position: fixed; z-index: 10; inset: 0 auto 0 0; height: auto; width: min(620px, 100vw); overflow: auto; padding: 10px 8px; background: var(--sidebar); border-right: 1px solid var(--border); box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.5); }
+  #picker[hidden] { display: none; }
+  #toast { position: fixed; z-index: 20; right: 16px; bottom: 16px; max-width: min(560px, calc(100vw - 32px)); padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); font-size: 12px; }
+  #toast.error { border-color: var(--removed); color: var(--removed); }
+  #toast[hidden] { display: none; }
+  #picker select { width: 100%; }
+  #picker h4 { display: flex; justify-content: space-between; margin: 16px 6px 6px; font: inherit; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  #picker h4 .meta { text-transform: none; letter-spacing: 0; opacity: 0.8; }
+  #picker h4 .tabs { display: flex; gap: 2px; text-transform: none; letter-spacing: 0; }
+  #picker h4 .tabs button { padding: 1px 8px; border: 0; border-radius: 4px; background: none; color: var(--muted); font-size: 12px; }
+  #picker h4 .tabs button:hover { background: var(--hover); }
+  #picker h4 .tabs button.active { background: var(--selected); color: var(--fg); }
+  #picker h4 .tabs .count { opacity: 0.7; }
+  #picker .row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; border-left: 2px solid transparent; color: var(--fg); text-decoration: none; }
+  #picker .row:hover { background: var(--hover); }
+  #picker .row.has-dirty { background: color-mix(in srgb, var(--modified) 9%, transparent); }
+  #picker .row.has-mine { background: color-mix(in srgb, var(--modified) 14%, transparent); }
+  #picker .row.has-dirty:hover { background: color-mix(in srgb, var(--modified) 16%, transparent); }
+  #picker .row.has-mine:hover { background: color-mix(in srgb, var(--modified) 22%, transparent); }
+  /* A PR with one of config.jsonc's prPanelLabels, tinted that label's color (--label). */
+  #picker .row.labelled { background: color-mix(in srgb, var(--label) 14%, transparent); }
+  #picker .row.labelled:hover { background: color-mix(in srgb, var(--label) 22%, transparent); }
+  :is(#picker, #picker-toggle) :is(.num, .branch-muted) { color: var(--muted); }
+  #picker .row.merged :is(.title, .sub) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 65%, transparent); }
+  #picker .row.merged-by-me { opacity: 0.5; }
+  #picker .row.current { box-shadow: inset 0 0 0 2px var(--accent); }
+  :is(#picker, #picker-toggle) .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  :is(#picker, #picker-toggle) .title, :is(#picker, #picker-toggle) .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :is(#picker, #picker-toggle) .sub { font-size: 11px; color: var(--muted); }
+  :is(#picker, #picker-toggle) .time { flex: none; font-size: 11px; color: var(--muted); min-width: 28px; text-align: right; }
+  #picker .children { margin: 0 0 4px 15px; padding-left: 8px; border-left: 1px solid var(--border); }
+  #picker .children .row { padding-block: 2px; }
+  #picker .children .title { color: var(--muted); font-size: 12px; }
+  :is(#picker, #picker-toggle) .ahead { color: var(--added); font-size: 11px; }
+  :is(#picker, #picker-toggle) .behind { color: var(--muted); font-size: 11px; }
+  .icon { flex: none; width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+  .i-pr-open { --icon: url(https://api.iconify.design/octicon/git-pull-request-16.svg); color: var(--added); }
+  .i-pr-draft { --icon: url(https://api.iconify.design/octicon/git-pull-request-draft-16.svg); color: var(--muted); }
+  .i-pr-merged { --icon: url(https://api.iconify.design/octicon/git-merge-16.svg); color: var(--renamed); }
+  .i-comment { --icon: url(https://api.iconify.design/octicon/comment-16.svg); }
+  .i-comment.after { color: var(--modified); }
+  :is(#picker, #picker-toggle) .title .icon { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+  .i-bot { --icon: url(https://api.iconify.design/octicon/dependabot-16.svg); }
+  :is(#picker, #picker-toggle) .title .i-bot { width: 12px; height: 12px; margin: 0 0 0 3px; }
+  .i-branch { --icon: url(https://api.iconify.design/octicon/git-branch-16.svg); color: var(--muted); }
+  .i-vm { --icon: url(https://api.iconify.design/octicon/server-16.svg); color: #56b6c2; }
+  .i-local { --icon: url(https://api.iconify.design/octicon/device-desktop-16.svg); color: var(--accent); }
+  .i-commit { --icon: url(https://api.iconify.design/octicon/git-commit-16.svg); color: var(--muted); }
+  .cell-to { flex: 0 1 240px; }
+  button { cursor: pointer; }
+  /* Sticks under the page header, and file heads stick under it, so its height is fixed for them to offset by. */
+  :root { --stats-h: 32px; }
+  #stats { position: sticky; top: var(--header-h, 90px); z-index: 2; display: flex; justify-content: flex-end; align-items: center; gap: 8px; height: var(--stats-h); margin: -16px -16px 0; padding: 0 16px; background: var(--bg); color: var(--muted); font-size: 12px; }
+  #stats :is(.gh, .vm, .local) { padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--fg); font-size: inherit; text-decoration: none; }
+  #stats :is(.gh, .vm, .local):hover { background: var(--hover); }
+  #actions { display: contents; }
+  :is(#new-vm-agent, #new-local-agent, #open-codebase) { display: block; width: 100%; margin-top: 8px; color: var(--muted); }
+  #open-codebase { margin-top: 16px; }
+  :is(#new-vm-agent, #new-local-agent, #open-codebase):hover { background: var(--hover); color: var(--fg); }
+  #pr { margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+  #pr .pr-body { max-height: 300px; overflow: hidden; }
+  #pr.expanded .pr-body { max-height: none; }
+  #pr:not(.expanded):has(.more:not([hidden])) .pr-body { mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent); }
+  #pr .more { display: block; width: calc(100% + 32px); margin: 12px -16px -12px; padding: 6px; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; background: none; color: var(--muted); font: inherit; font-size: 12px; text-align: center; }
+  #pr .more:hover { background: var(--hover); color: var(--fg); }
+  #pr .more[hidden] { display: none; }
+  #pr .markdown { font-size: 14px; line-height: 1.6; }
+  /* Long lines are hard to read, but screenshots keep the full width. */
+  #pr .markdown :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, table):not(:has(img, video)) { max-width: 700px; }
+  #pr .markdown > :first-child { margin-top: 0; }
+  #pr .markdown > :last-child { margin-bottom: 0; }
+  #pr .markdown :is(p, ul, ol, pre, table, blockquote) { margin: 0 0 10px; }
+  #pr .markdown :is(h1, h2, h3, h4) { margin: 18px 0 8px; font-size: 16px; }
+  #pr .markdown a { color: var(--accent); }
+  #pr .markdown img, #pr .markdown video { max-width: 100%; height: auto; }
+  #pr .markdown code { padding: 1px 4px; border-radius: 4px; background: var(--hover); font-size: 13px; }
+  #pr .markdown pre { padding: 8px 12px; border-radius: 6px; background: var(--hover); overflow-x: auto; }
+  #pr .markdown pre code { padding: 0; background: none; }
+  #pr .markdown blockquote { padding-left: 12px; border-left: 3px solid var(--border); color: var(--muted); }
+  #pr .markdown :is(th, td) { padding: 4px 8px; border: 1px solid var(--border); }
+  #pr .note { padding: 0; text-align: left; }
+
+  .layout { display: grid; grid-template-columns: 280px 300px 1fr; }
+  .deps details > summary { display: flex; list-style: none; padding: 0 0 0 2px; color: inherit; }
+  .deps details > summary::-webkit-details-marker { display: none; }
+  .deps details > summary::before { content: "▸"; width: 12px; flex: none; color: var(--muted); }
+  .deps details[open] > summary::before { content: "▾"; }
+  .deps details > summary > a { flex: 1; min-width: 0; padding-left: 4px; }
+  .deps .repeat { color: var(--muted); }
+  .deps .uses { margin-left: auto; padding-left: 6px; color: var(--muted); font-size: 11px; }
+  .deps h4 { margin: 12px 0 2px; padding: 0 6px; font: inherit; color: var(--muted); }
+  @media (max-width: 1200px) { .layout { grid-template-columns: 300px 1fr; } #deps { display: none; } }
+  /* experimental_depHierarchyPanel: false in config.jsonc drops the dependency panel at every width. */
+  .layout.no-deps { grid-template-columns: 300px 1fr; }
+  .layout.no-deps #deps { display: none; }
+  aside { position: sticky; top: var(--header-h, 90px); height: calc(100vh - var(--header-h, 90px)); overflow: auto; border-right: 1px solid var(--border); background: var(--sidebar); padding: 8px 4px; font-size: 13px; }
+  main { min-width: 0; padding: 16px; }
+
+  .tree ul { list-style: none; margin: 0; padding-left: 12px; }
+  .tree > ul { padding-left: 0; }
+  /* A guide line under each folder, so it's clear what's nested in what. */
+  .tree ul ul { margin-left: 7px; padding-left: 5px; border-left: 1px solid var(--muted); }
+  .tree summary { cursor: pointer; padding: 2px 6px; border-radius: 4px; color: var(--muted); white-space: nowrap; }
+  .tree a { display: flex; gap: 6px; align-items: center; padding: 2px 6px 2px 20px; border-radius: 4px; color: var(--fg); text-decoration: none; white-space: nowrap; }
+  /* Badges start where folder names do, so they sit against the guide lines; the dependency panel keeps the indent
+     that lines its files up past the ▸ arrows. */
+  #tree a { padding-left: 6px; }
+  .tree a:hover, .tree summary:hover { background: var(--hover); }
+  .tree a.active { background: var(--selected); }
+  .tree a.struck, #tree details:not([open]) > summary { text-decoration: line-through; opacity: 0.55; }
+  .tree-modes { display: flex; justify-content: flex-end; gap: 2px; margin: 0 4px 6px; }
+  .tree-modes button { display: flex; padding: 4px 9px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); }
+  .tree-modes button:hover { background: var(--hover); }
+  .tree-modes button.on { background: var(--selected); border-color: var(--border); color: var(--fg); }
+  .i-unfold { --icon: url(https://api.iconify.design/octicon/unfold-16.svg); }
+  .i-trash { --icon: url(https://api.iconify.design/octicon/trash-16.svg); }
+  .i-beaker { --icon: url(https://api.iconify.design/octicon/beaker-16.svg); }
+  .i-fold { --icon: url(https://api.iconify.design/octicon/fold-16.svg); }
+  .tree a span { overflow: hidden; text-overflow: ellipsis; }
+
+  .badge { flex: none; width: 16px; height: 16px; border-radius: 4px; border: 1px solid currentColor; font-weight: 600; font-size: 10px; line-height: 14px; text-align: center; }
+  .added { color: var(--added); } .removed { color: var(--removed); } .modified { color: var(--modified); } .renamed { color: var(--renamed); }
+
+  .file { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; scroll-margin-top: calc(var(--header-h, 90px) + var(--stats-h) + 8px); }
+  .file > .head { position: sticky; top: calc(var(--header-h, 90px) + var(--stats-h)); z-index: 2; display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; font-size: 12px; }
+  .head .path { margin-right: auto; min-width: 0; overflow-wrap: anywhere; text-align: left; border: 0; background: none; padding: 0; font: inherit; }
+  .head button.path { cursor: pointer; }
+  .head button.path:hover { color: var(--accent); text-decoration: underline; }
+  .head .whole, .head .gh, .head .fold { font-size: 12px; padding: 1px 8px; }
+  .file.flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { outline: 2px solid var(--accent); outline-offset: 2px; } to { outline: 2px solid transparent; outline-offset: 2px; } }
+  .file.collapsed > .head { border-bottom: 0; border-radius: 6px; }
+  .file.collapsed .whole { display: none; }
+  .file[hidden] { border: 0; margin: 0; }
+  .head .gh { color: inherit; text-decoration: none; border: 1px solid var(--border); border-radius: 6px; }
+  .head .gh:not([href]) { opacity: 0.4; cursor: default; }
+  .head .tag { color: var(--muted); }
+  .stat-add { color: var(--added); } .stat-del { color: var(--removed); }
+  /* Every diff is in the DOM so find-in-page sees it; off-screen ones skip layout. [hidden] keeps until-found's own value. */
+  .body { overflow-x: auto; }
+  /* The size estimate applies only while shown: until-found keeps a box, which would otherwise stay that tall. */
+  .body:not([hidden]) { content-visibility: auto; contain-intrinsic-size: auto var(--estimated-h); }
+  .note { padding: 16px; color: var(--muted); text-align: center; }
+  .folded { padding: 8px 12px; margin-bottom: 16px; border: 1px dashed var(--border); border-radius: 6px; color: var(--muted); font-size: 12px; }
+
+  table.diff { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 20px; }
+  .diff td { padding: 0; vertical-align: top; }
+  .diff .num { width: 1%; min-width: 50px; padding: 0 10px; text-align: right; color: var(--line-num); user-select: none; }
+  .diff tr[data-open] .num { cursor: pointer; }
+  .diff tr[data-open] .num:hover { color: var(--accent); text-decoration: underline; }
+  .diff .code { padding: 0 10px; white-space: pre; }
+  .diff tr.add td { background: var(--add-bg); } .diff tr.add .num { background: var(--add-num); }
+  .diff tr.del td { background: var(--del-bg); } .diff tr.del .num { background: var(--del-num); }
+  .diff td.add { background: var(--add-bg); } .diff td.num.add { background: var(--add-num); }
+  .diff td.del { background: var(--del-bg); } .diff td.num.del { background: var(--del-num); }
+  .diff td.empty { background: var(--panel); }
+  .diff .add .chg { background: var(--add-word); border-radius: 2px; }
+  .diff .del .chg { background: var(--del-word); border-radius: 2px; }
+  table.split { table-layout: fixed; }
+  .split col.n { width: 60px; }
+  .split .code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .split td:nth-child(3) { border-left: 1px solid var(--border); }
+  .diff tr.hunk td { background: var(--hunk-bg); color: var(--muted); padding: 4px 10px; }
+
+  #error { color: var(--removed); white-space: pre-wrap; }
+  @media (max-width: 800px) { .layout, .layout.no-deps { grid-template-columns: 1fr; } aside { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <form method="get" action="/" autocomplete="off">
+    <button type="button" id="picker-toggle">Pick a repo…</button>
+    <input type="hidden" name="repo">
+    <input type="hidden" name="from">
+    <label class="cell cell-to"><span class="cell-label">compared to</span><input name="to" list="branches" placeholder="origin/HEAD"></label>
+    <label class="cell"><span class="cell-label">from where</span><select name="base">
+      <option value="merge">merge-base (PR)</option>
+      <option value="direct">branch tip</option>
+    </select></label>
+  </form>
+  <datalist id="branches"></datalist>
+  <div id="toast" hidden></div>
+  <aside id="picker" hidden>
+    <select id="repo-select"><option value="">Pick a repo…</option></select>
+    <div id="from-list"></div>
+    <button type="button" id="open-codebase">vscode origin:main/master</button>
+    <button type="button" id="new-vm-agent">new vm agent</button>
+    <button type="button" id="new-local-agent">new local agent</button>
+  </aside>
+</header>
+<div class="layout">
+  <aside class="tree deps" id="deps"></aside>
+  <aside class="tree" id="tree"></aside>
+  <main id="files"><div id="error"></div></main>
+</div>
+
+<script id="settings" type="application/json">{}</script>
+<script type="module">
+import hljs from "https://esm.run/highlight.js@11";
+
+const LETTER = { added: "A", removed: "D", modified: "M", renamed: "R" };
+const ALIAS = { tsx: "typescript", mts: "typescript", cts: "typescript", jsx: "javascript", mjs: "javascript", cjs: "javascript", vue: "xml", svelte: "xml", lock: "plaintext" };
+
+const SETTINGS = JSON.parse(document.getElementById("settings").textContent);
+if (!SETTINGS.depHierarchyPanel) document.querySelector(".layout").classList.add("no-deps");
+const form = document.querySelector("form");
+const params = new URLSearchParams(location.search);
+// Back/forward can restore stale field values, so the form always mirrors the URL.
+form.reset();
+for (const el of form.elements) if (el.name && params.has(el.name)) el.value = params.get(el.name);
+addEventListener("pageshow", (e) => e.persisted && location.reload());
+
+const header = document.querySelector("header");
+new ResizeObserver(() => document.documentElement.style.setProperty("--header-h", header.offsetHeight + "px")).observe(header);
+
+function h(tag, props = {}, ...children) {
+  const el = Object.assign(document.createElement(tag), props);
+  el.append(...children.filter((c) => c != null));
+  return el;
+}
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function languageOf(path) {
+  const name = path.split("/").pop().toLowerCase();
+  if (name === "dockerfile" || name === "makefile") return name;
+  const ext = name.includes(".") ? name.split(".").pop() : "";
+  const lang = ALIAS[ext] ?? ext;
+  return hljs.getLanguage(lang) ? lang : null;
+}
+
+async function loadBranches() {
+  const repo = params.get("repo");
+  if (!repo) return;
+  const res = await fetch("/api/branches?" + new URLSearchParams({ repo }));
+  if (!res.ok) return;
+  const branches = await res.json();
+  document.getElementById("branches").replaceChildren(...branches.map((value) => h("option", { value })));
+}
+
+function ago(time) {
+  const m = Math.floor((Date.now() - new Date(time)) / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m ago`;
+  if (m < 1440) return `${Math.floor(m / 60)}h${m % 60}m ago`;
+  return `${Math.floor(m / 1440)}d ago`;
+}
+
+let prs = [];
+let prDescription = null;
+// The PR whose description is shown, once it has loaded; the stats buttons and the "e" shortcut act on it.
+let shownPr = null;
+
+const fetchPrDescription = (number) => {
+  if (prDescription?.number !== number) {
+    const loaded = fetch("/api/pr?" + new URLSearchParams({ repo: params.get("repo"), number })).then((res) => (res.ok ? res.json() : null));
+    prDescription = { number, loaded };
+  }
+  return prDescription.loaded;
+};
+
+// The description shows as soon as the PR is known, without waiting on the diff, and the one panel is kept across
+// refreshes so it doesn't flash; the PR link joins the sticky stats once the diff brings them.
+async function showPr() {
+  const number = prNumber();
+  renderActions();
+  if (!number) return;
+  const description = await fetchPrDescription(number);
+  if (!description || number !== prNumber()) return;
+  const main = document.getElementById("files");
+  if (!document.getElementById("pr")) {
+    const markdown = h("div", { className: "markdown" });
+    if (description.bodyHTML.trim()) markdown.innerHTML = description.bodyHTML;
+    else markdown.append(h("div", { className: "note", textContent: "No description" }));
+    const more = h("button", { type: "button", className: "more", textContent: "more", hidden: true });
+    const body = h("div", { className: "pr-body" }, markdown);
+    const panel = h("section", { id: "pr" }, body, more);
+    more.onclick = () => (more.textContent = panel.classList.toggle("expanded") ? "less" : "more");
+    // Images load in later, so whether it overflows is rechecked as the content grows.
+    new ResizeObserver(() => panel.classList.contains("expanded") || (more.hidden = body.scrollHeight <= body.clientHeight)).observe(markdown);
+    const stats = document.getElementById("stats");
+    if (stats) stats.after(panel);
+    else main.prepend(panel);
+  }
+  shownPr = { number, url: description.url };
+  renderActions();
+}
+
+// The buttons at the end of the stats bar, redrawn from state whenever the diff or the PR changes. Only a checkout on
+// this Mac is somewhere Claude can start locally: for a PR in a worktree of its branch, otherwise in the files on disk,
+// which isn't offered while a PR is still loading so a click then can't land in the wrong place.
+function renderActions() {
+  const actions = document.getElementById("actions");
+  if (!actions) return;
+  const local = !/^[\w-]+:/.test(params.get("repo") ?? "");
+  const pr = shownPr?.number === prNumber() ? shownPr : null;
+  const button = (className, textContent, onclick) => h("button", { type: "button", className, textContent, onclick });
+  actions.replaceChildren(...(pr
+    ? [
+        local ? button("local", "Local Claude", () => startLocalClaude(pr.number)) : null,
+        button("vm", "VM Claude", () => startVmClaude(pr.number)),
+        // One named tab for every PR, so following the link again reuses it; noopener would make each open a new tab.
+        h("a", { className: "gh", href: `${pr.url}#js-timeline-progressive-loader`, target: "code-diff-github", textContent: "GitHub" }),
+      ]
+    : [!params.get("from") && !prNumber() ? (local ? button("local", "Local Claude", () => startLocalClaude()) : button("vm", "VM Claude", () => startVmClaude(null, true))) : null]
+  ).filter(Boolean));
+}
+
+let github = null;
+let shownFiles = [];
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// The PR is known from `#123`, else matched by branch once sources load.
+function prNumber() {
+  const from = params.get("from") ?? "";
+  return /^#\d+$/.test(from) ? Number(from.slice(1)) : prs.find((p) => p.headRefName === github?.branch)?.number;
+}
+
+// PR file anchors are GitHub's sha256 of the path.
+async function linkGithub() {
+  if (!github) return;
+  const pr = prNumber();
+  for (const file of shownFiles) {
+    const a = file.github;
+    if (pr) a.href = `${github.url}/pull/${pr}/files#diff-${await sha256(file.path)}`;
+    else if (github.pushed && file.status !== "removed") a.href = `${github.url}/blob/${github.branch}/${file.path.split("/").map(encodeURIComponent).join("/")}`;
+    else a.removeAttribute("href");
+    a.title = a.href ? "Open on GitHub" : "Not on GitHub";
+  }
+}
+
+// The machine holding the current checkout; rows from /api/sources are its, rows from /api/checkouts carry their own.
+const machine = /^([\w-]+):/.exec(params.get("repo") ?? "")?.[1]?.toUpperCase() ?? "Local";
+let sourcesData = null;
+// Comments by PR number and more finished branches, from /api/pr-activity, which can arrive after the lists.
+let activity = { comments: {}, finished: [] };
+let otherRows = [];
+let sourcesAt = 0;
+let checkoutsAt = 0;
+
+// Each group heading says when its data was last fetched, and whether a reload is under way.
+function updateMenuMeta() {
+  for (const meta of document.querySelectorAll("#from-list h4 .meta")) {
+    const when = ago(Number(meta.dataset.at));
+    meta.textContent = `checked ${when === "now" ? "just now" : when}${menuLoading ? " • updating…" : ""}`;
+  }
+}
+
+// Groups: PR, Remote (origin branches without a PR), then each machine's "Only" group for work origin doesn't have.
+// A checkout or local branch whose branch is on origin is nested under that PR or Remote row instead.
+// A row opens its view by plain link: a "repo:" ref switches checkout, anything else keeps repo, to and base.
+function hrefFor(ref) {
+  if (ref.startsWith("repo:")) return "?" + new URLSearchParams({ repo: ref.slice(5) });
+  const q = new URLSearchParams({ repo: params.get("repo") ?? "" });
+  if (ref) q.set("from", ref);
+  for (const key of ["to", "base"]) if (params.get(key)) q.set(key, params.get(key));
+  return "?" + q;
+}
+
+const PR_ICON = { OPEN: "pr-open", MERGED: "pr-merged" };
+const shortAgo = (t) => ago(t).replace(" ago", "");
+
+// Row tint: yellow for the user's unfinished work (open PR, unmerged branch), fainter for uncommitted files; hover says which.
+const DOT_TITLE = { dirty: "uncommitted files", mine: "your unfinished work" };
+
+const badges = (r) => [
+  r.ahead ? h("span", { className: "ahead", title: `${r.ahead} commits not on origin`, textContent: `↑${r.ahead}` }) : null,
+  r.behind ? h("span", { className: "behind", title: `${r.behind} commits behind origin`, textContent: `↓${r.behind}` }) : null,
+];
+
+// config.jsonc's prPanelBranchStrip prefix moves to the end, muted, to lead with what the branch is about; dashes are
+// muted so the words stand out.
+const BRANCH_STRIP = SETTINGS.branchStrip ? new RegExp(`^(?:${SETTINGS.branchStrip})`) : null;
+const branchTitle = (title) => {
+  const prefix = BRANCH_STRIP?.exec(title)?.[0];
+  const rest = prefix && prefix.length < title.length ? title.slice(prefix.length) : title;
+  const words = rest.split("-").flatMap((word, i) => (i ? [h("span", { className: "branch-muted", textContent: "-" }), word] : [word]));
+  return rest === title ? words : [...words, " ", h("span", { className: "branch-muted", textContent: prefix.replace(/[-/]+$/, "") })];
+};
+
+// `branch` is set on a checkout listed under its PR or origin branch, whose own title is just its path.
+function pickerRow({ ref, icon, title, branch = null, lead = [], num = null, sub = null, extra = [], time, hint, dot = null, labelColor = null, merged = false, mergedByMe = false }) {
+  const current = ref === (params.get("from") ?? "");
+  const row = h("a", { href: hrefFor(ref), className: `row${current ? " current" : ""}${dot ? ` has-${dot}` : ""}${labelColor ? " labelled" : ""}${merged ? " merged" : ""}${mergedByMe ? " merged-by-me" : ""}`, title: [hint ?? title, DOT_TITLE[dot]].filter(Boolean).join(" · ") },
+    h("span", { className: `icon i-${icon}` }),
+    h("span", { className: "main" },
+      h("span", { className: "title" }, ...lead, ...branchTitle(title), num ? h("span", { className: "num", textContent: ` #${num}` }) : null),
+      sub ? h("span", { className: "sub", textContent: sub }) : null),
+    ...extra,
+    h("span", { className: "time", textContent: shortAgo(time) }),
+  );
+  if (branch) row.dataset.branch = branch;
+  if (labelColor) row.style.setProperty("--label", labelColor);
+  return row;
+}
+
+const machineIcon = (r) => (r.machine === "Local" ? "local" : "vm");
+
+// The PR panel's tabs: all, mine and others, then one per label in config.jsonc's prPanelLabels, keyed "label:<name>".
+const PR_TABS = { all: "all", mine: "mine", others: "others", ...Object.fromEntries(Object.keys(SETTINGS.labels).map((l) => [`label:${l}`, l.replace(/-/g, " ")])) };
+let prTab = "all";
+
+const commentIcon = (c) => c?.by.length ? h("span", {
+  className: `icon i-comment${c.after ? " after" : ""}`,
+  title: `${c.after ? "New comments since yours" : "Commented"}: ${c.by.map((l) => `@${l}`).join(", ")}`,
+}) : null;
+
+function renderFrom() {
+  if (!sourcesData) return;
+  const { prs: prList, origin, me } = sourcesData;
+  const finished = new Set([...sourcesData.finished, ...activity.finished]);
+  const rows = [...sourcesData.rows.map((r) => ({ ...r, machine })), ...otherRows];
+  const prFor = new Map();
+  for (const p of prList) if (p.state !== "CLOSED" && !prFor.has(p.headRefName)) prFor.set(p.headRefName, p);
+  const onOrigin = new Set(origin.map((o) => o.name));
+  const nested = Map.groupBy(rows.filter((r) => r.branch && (prFor.has(r.branch) || onOrigin.has(r.branch))), (r) => r.branch);
+  const only = rows.filter((r) => !(r.branch && (prFor.has(r.branch) || onOrigin.has(r.branch))));
+
+  const children = (branch) => {
+    const list = nested.get(branch);
+    if (!list) return null;
+    return h("div", { className: "children" }, ...list.map((r) => pickerRow({
+      ref: r.ref,
+      branch,
+      icon: machineIcon(r),
+      title: r.path ?? "local branch",
+      hint: `${r.machine}: ${r.path ?? `local branch ${branch}`}`,
+      dot: r.dirty ? "dirty" : null,
+      extra: badges(r),
+      time: r.changedAt,
+    })));
+  };
+  const recent = Date.now() - 3 * 86_400_000;
+  // A PR opened by an app (author "app/…") is credited to its assignee, preferring someone other than the user, so
+  // it's the user's (their login plus a bot icon) only when they're its sole assignee.
+  const human = (p) => (p.author.is_bot && p.assignees?.length ? (p.assignees.find((a) => a.login !== me) ?? p.assignees[0]).login : p.author.login);
+  const byline = (p) => h("span", { className: "by" },
+    human(p),
+    human(p) === p.author.login ? null : h("span", { className: "icon i-bot", title: `opened by ${p.author.login}` }),
+    " · ");
+  const isMine = (p) => p.state === "OPEN" && human(p) === me;
+  const unfinished = (o) => o.mine && !o.merged && !finished.has(o.name);
+  const shownPrs = [...prFor.values()].filter((p) => new Date(p.updatedAt) > recent || nested.has(p.headRefName) || isMine(p));
+  const hasLabel = (p, name) => p.state !== "MERGED" && p.labels?.some((l) => l.name === name);
+  const labelColor = (p) => Object.entries(SETTINGS.labels).find(([name]) => hasLabel(p, name))?.[1] ?? null;
+  const inTab = { all: () => true, mine: (p) => human(p) === me, others: (p) => human(p) !== me, ...Object.fromEntries(Object.keys(SETTINGS.labels).map((l) => [`label:${l}`, (p) => hasLabel(p, l)])) };
+  const tabs = h("span", { className: "tabs" }, ...Object.entries(PR_TABS).map(([tab, label]) => {
+    const button = h("button", { type: "button", className: tab === prTab ? "active" : "" },
+      label, h("span", { className: "count", textContent: ` ${shownPrs.filter(inTab[tab]).length}` }));
+    // The re-render detaches the button, so the click would otherwise read as outside the menu and close it.
+    button.onclick = (e) => {
+      e.stopPropagation();
+      prTab = tab;
+      renderFrom();
+    };
+    return button;
+  }));
+  const shownRemote = origin.filter((o, i) => !prFor.has(o.name) && (i < 20 || nested.has(o.name) || unfinished(o)));
+
+  const groups = [
+    [tabs, sourcesAt, shownPrs.filter(inTab[prTab]).flatMap((p) => [
+      pickerRow({
+        ref: `#${p.number}`,
+        icon: p.isDraft && p.state === "OPEN" ? "pr-draft" : PR_ICON[p.state] ?? "pr-open",
+        title: p.headRefName,
+        hint: `${p.title} #${p.number}`,
+        lead: [
+          commentIcon(activity.comments[p.number]),
+          p.author.login === me ? null : byline(p),
+        ],
+        sub: `#${p.number} ${p.title}`,
+        dot: isMine(p) ? "mine" : null,
+        labelColor: labelColor(p),
+        merged: p.state === "MERGED",
+        mergedByMe: p.state === "MERGED" && p.mergedBy?.login === me,
+        time: p.updatedAt,
+      }),
+      children(p.headRefName),
+    ])],
+    ["Remote branches", sourcesAt, shownRemote.flatMap((o) => [
+      pickerRow({ ref: `origin/${o.name}`, icon: "branch", title: o.name, time: o.changedAt, dot: unfinished(o) ? "mine" : null }),
+      children(o.name),
+    ])],
+    ...[...Map.groupBy(only, (r) => r.machine)]
+      .sort(([a], [b]) => (a === "Local") - (b === "Local"))
+      .map(([name, list]) => [`${name} only`, name === machine ? sourcesAt : checkoutsAt, list.map((r) => pickerRow({
+        ref: r.ref,
+        icon: r.branch ? machineIcon(r) : "commit",
+        title: r.branch ?? "detached HEAD",
+        sub: r.path,
+        dot: r.dirty ? "dirty" : r.branch && !r.merged && !finished.has(r.branch) ? "mine" : null,
+        extra: badges(r),
+        time: r.changedAt,
+      }))]),
+  ];
+  document.getElementById("from-list").replaceChildren(
+    // The PR tabs stay up while a tab is empty, so another can be picked.
+    ...groups.filter(([label, , list]) => list.some(Boolean) || (label === tabs && shownPrs.length)).flatMap(([label, at, list]) => {
+      const meta = h("span", { className: "meta" });
+      meta.dataset.at = String(at);
+      return [h("h4", {}, label === tabs ? tabs : h("span", { textContent: label }), meta), ...list.filter(Boolean)];
+    }),
+  );
+  updatePickerLabel();
+  updateMenuMeta();
+}
+
+async function loadSources() {
+  if (!params.get("repo")) return;
+  const res = await fetch("/api/sources?" + new URLSearchParams({ repo: params.get("repo") }));
+  if (!res.ok) return;
+  sourcesData = await res.json();
+  sourcesAt = Date.now();
+  prs = sourcesData.prs;
+  linkGithub();
+  showPr();
+  renderFrom();
+}
+
+async function loadActivity() {
+  if (!params.get("repo")) return;
+  const res = await fetch("/api/pr-activity?" + new URLSearchParams({ repo: params.get("repo") }));
+  if (!res.ok) return;
+  activity = await res.json();
+  renderFrom();
+}
+
+// Other machines' checkouts arrive once the slower SSH scan returns.
+async function loadCheckouts() {
+  if (!params.get("repo")) return;
+  const res = await fetch("/api/checkouts?" + new URLSearchParams({ repo: params.get("repo") }));
+  if (!res.ok) return;
+  otherRows = await res.json();
+  checkoutsAt = Date.now();
+  renderFrom();
+}
+
+// The current repo's option carries the current checkout as its value, so submitting the form stays on that worktree.
+async function loadRepos() {
+  const repos = await (await fetch("/api/repos")).json();
+  const current = params.get("repo");
+  const option = (repo) => h("option", {
+    value: repo.worktrees.includes(current) ? current : repo.path,
+    title: repo.worktrees.join("\n"),
+    textContent: repo.name,
+  });
+  const select = document.getElementById("repo-select");
+  select.replaceChildren(
+    h("option", { value: "", textContent: "Pick a repo…" }),
+    h("optgroup", { label: "GitHub Remote" }, ...repos.filter((r) => r.github).map(option)),
+    h("optgroup", { label: "Local Only" }, ...repos.filter((r) => !r.github).map(option)),
+  );
+  if (current && ![...select.options].some((o) => o.value === current)) select.append(h("option", { value: current, textContent: current }));
+  select.value = current ?? "";
+  repoName = select.selectedOptions[0]?.textContent ?? current ?? "";
+  updatePickerLabel();
+}
+
+// from/to belong to the previous repo, so a new repo pick starts from its defaults.
+form.addEventListener("change", () => form.requestSubmit());
+
+const picker = document.getElementById("picker");
+const toggle = document.getElementById("picker-toggle");
+const showPicker = (open) => {
+  picker.hidden = !open;
+  toggle.classList.toggle("open", open);
+};
+document.getElementById("new-local-agent").onclick = async () => {
+  showPicker(false);
+  const res = await fetch("/api/new-local-agent?" + new URLSearchParams({ repo: params.get("repo") ?? "" }), { method: "POST" }).catch(() => null);
+  if (!res) return toast("code-diff server is not responding", true);
+  if (!res.ok) return toast((await res.json()).error ?? "Could not start a local agent", true);
+  toast("Opened in terminal");
+};
+document.getElementById("open-codebase").onclick = async () => {
+  showPicker(false);
+  toast("Opening the latest base branch in VS Code…");
+  const res = await fetch("/api/open-base?" + new URLSearchParams({ repo: params.get("repo") ?? "" }), { method: "POST" }).catch(() => null);
+  if (!res) return toast("code-diff server is not responding", true);
+  const body = await res.json();
+  if (!res.ok) return toast(body.error ?? "Could not open the base branch", true);
+  if (body.kept) toast(`Opened, but it has uncommitted changes, so it wasn't moved to the latest ${body.base}`, true);
+};
+document.getElementById("new-vm-agent").onclick = () => {
+  showPicker(false);
+  startVmClaude();
+};
+toggle.onclick = () => {
+  const open = picker.hidden;
+  showPicker(open);
+  if (open) refreshMenu();
+};
+addEventListener("keydown", (e) => e.key === "Escape" && showPicker(false));
+// "q" toggles the menu, "w" expands or collapses the PR description, "e" opens the PR on GitHub and "n" starts a new VM agent, except while typing in a field or with a modifier held.
+addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest("input, select, textarea, [contenteditable]")) return;
+  const more = document.querySelector("#pr .more:not([hidden])");
+  if (e.key === "q") toggle.onclick();
+  else if (e.key === "w" && more) more.click();
+  else if (e.key === "e" && shownPr?.number === prNumber()) open(`${shownPr.url}#js-timeline-progressive-loader`, "code-diff-github")?.focus();
+  else if (e.key === "n") document.getElementById("new-vm-agent").click();
+  else return;
+  e.preventDefault();
+});
+addEventListener("click", (e) => {
+  if (!picker.hidden && !picker.contains(e.target) && !e.target.closest("#picker-toggle")) showPicker(false);
+});
+
+// A new repo starts from its own defaults, so from, to and base are dropped.
+document.getElementById("repo-select").addEventListener("change", (e) => {
+  location.search = "?" + new URLSearchParams({ repo: e.target.value });
+});
+
+let repoName = "";
+let fromName = params.get("from") || "";
+// The toggle mirrors the drawer's current row on one line, after the repo name; until that row exists it's plain text.
+// A checkout nested under its PR or branch reads its branch there, with its path below as in the "only" groups.
+const updatePickerLabel = () => {
+  const row = document.querySelector("#from-list .row.current");
+  const clone = row?.cloneNode(true);
+  if (clone?.dataset.branch) {
+    clone.querySelector(".main").replaceChildren(
+      h("span", { className: "title" }, ...branchTitle(clone.dataset.branch)),
+      h("span", { className: "sub", textContent: clone.querySelector(".title").textContent }));
+  }
+  const body = clone ? [...clone.childNodes] : [h("span", { className: "main" }, h("span", { className: "title", textContent: fromName || repoName || "Pick a repo…" }))];
+  toggle.className = `${toggle.classList.contains("open") ? "open " : ""}${[...(row?.classList ?? [])].filter((c) => c.startsWith("has-")).join(" ")}`;
+  toggle.replaceChildren(h("span", { className: "cell-row" }, ...body, h("span", { className: "icon i-chevron" })));
+};
+// The picker's lists go stale as PRs, branches and checkouts change, so they reload every 5 minutes and on each
+// open; the current lists stay up until new ones arrive, and a reload already in flight isn't doubled.
+let menuLoading = null;
+function refreshMenu() {
+  menuLoading ??= Promise.allSettled([loadRepos(), loadSources(), loadActivity(), loadCheckouts()]).finally(() => {
+    menuLoading = null;
+    updateMenuMeta();
+  });
+  updateMenuMeta();
+  return menuLoading;
+}
+refreshMenu();
+setInterval(refreshMenu, 5 * 60_000);
+setInterval(updateMenuMeta, 30_000);
+loadBranches();
+
+function buildTree(files) {
+  const root = { name: "", dirs: new Map(), files: [] };
+  for (const f of files) {
+    let node = root;
+    for (const part of f.path.split("/").slice(0, -1)) {
+      if (!node.dirs.has(part)) node.dirs.set(part, { name: part, dirs: new Map(), files: [] });
+      node = node.dirs.get(part);
+    }
+    node.files.push(f);
+  }
+  return root;
+}
+
+function compact(node) {
+  while (node.dirs.size === 1 && node.files.length === 0) {
+    const [child] = node.dirs.values();
+    node = { ...child, name: node.name ? `${node.name}/${child.name}` : child.name };
+  }
+  return node;
+}
+
+function sortedChildren(node) {
+  const dirs = [...node.dirs.values()].map(compact).sort((a, b) => a.name.localeCompare(b.name));
+  const files = [...node.files].sort((a, b) => a.path.localeCompare(b.path));
+  return { dirs, files };
+}
+
+function treeOrder(node, out = []) {
+  const { dirs, files } = sortedChildren(node);
+  for (const d of dirs) treeOrder(d, out);
+  out.push(...files);
+  return out;
+}
+
+const shortName = (path) => {
+  const parts = path.split("/");
+  return /^index\./.test(parts.at(-1)) && parts.length > 1 ? parts.slice(-2).join("/") : parts.at(-1);
+};
+
+// Importers sit above what they import. A file imported by two or more changed files is lifted to the top level,
+// most-imported first, and each importer points up to it with a "↑" link; a file reached again is also a "↑" link,
+// and cycles with no root are picked up afterwards.
+async function loadDeps(files) {
+  const deps = document.getElementById("deps");
+  deps.replaceChildren();
+  const paths = files.filter((f) => f.status !== "removed" && !f.binary).map((f) => f.path);
+  const q = new URLSearchParams({ repo: params.get("repo") ?? "", from: params.get("from") ?? "" });
+  const res = await fetch("/api/deps?" + q, { method: "POST", body: JSON.stringify({ paths }) });
+  if (!res.ok) return;
+  const edges = await res.json();
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const importers = {};
+  for (const [file, deps] of Object.entries(edges)) for (const dep of deps) (importers[dep] ??= []).push(file);
+  const shared = new Set(Object.keys(importers).filter((p) => importers[p].length > 1));
+  const seen = new Set();
+  const link = (f) => h("a", { href: `#${f.id}`, title: f.path },
+    h("span", { className: `badge ${f.status}`, textContent: LETTER[f.status] }),
+    h("span", { textContent: shortName(f.path) }),
+    shared.has(f.path) ? h("span", { className: "uses", title: `imported by ${importers[f.path].length} changed files`, textContent: `×${importers[f.path].length}` }) : null);
+  const up = (path) => {
+    const f = byPath.get(path);
+    return h("li", {}, h("a", { href: `#${f.id}`, title: f.path, className: "repeat", textContent: `↑ ${shortName(path)}` }));
+  };
+  const node = (path) => {
+    if (seen.has(path)) return up(path);
+    seen.add(path);
+    const f = byPath.get(path);
+    const kids = edges[path] ?? [];
+    if (!kids.length) return h("li", {}, link(f));
+    return h("li", {}, h("details", { open: true }, h("summary", {}, link(f)),
+      h("ul", {}, ...kids.map((k) => (shared.has(k) ? up(k) : node(k))))));
+  };
+  const lifted = files.filter((f) => shared.has(f.path)).sort((a, b) => importers[b.path].length - importers[a.path].length);
+  const entries = files.filter((f) => edges[f.path] && !importers[f.path]);
+  const roots = [...lifted, ...entries].map((f) => node(f.path));
+  const cycles = [];
+  for (const f of files) if ((edges[f.path] || importers[f.path]) && !seen.has(f.path)) cycles.push(node(f.path));
+  const loose = files.filter((f) => !seen.has(f.path));
+  deps.append(h("ul", {}, ...roots, ...cycles));
+  if (loose.length) deps.append(h("h4", { textContent: `${loose.length} unlinked` }), h("ul", {}, ...loose.map((f) => h("li", {}, link(f)))));
+  syncStrikes();
+  markActive();
+}
+
+// Only the outermost closed folder gets a line; its files are contiguous on the right because both sides use tree order.
+function foldFiles() {
+  document.querySelectorAll(".folded").forEach((el) => el.remove());
+  const closed = [...document.querySelectorAll("#tree details:not([open])")].map((d) => d.dataset.path);
+  const outer = closed.filter((p) => !closed.some((q) => p.startsWith(q + "/")));
+  for (const file of shownFiles) file.card.hidden = outer.some((p) => file.path.startsWith(p + "/")) ? "until-found" : false;
+  for (const path of outer) {
+    const hidden = shownFiles.filter((f) => f.path.startsWith(path + "/"));
+    const n = hidden.length;
+    hidden[0]?.card.before(h("div", { className: "folded", textContent: `${n} /${path} file${n === 1 ? "" : "s"} collapsed` }));
+  }
+  cards = shownFiles.map((f) => f.card).filter((c) => !c.hidden);
+  syncStrikes();
+  syncToolbar();
+  markActive();
+}
+
+// Sidebar entries for files hidden by a closed folder or collapsed on the right are struck through. Each pass clears
+// every strike first, so links left from an earlier render never keep one.
+function syncStrikes() {
+  document.querySelectorAll(".tree a.struck").forEach((a) => a.classList.remove("struck"));
+  for (const f of shownFiles) {
+    if (!f.card.hidden && !f.card.classList.contains("collapsed")) continue;
+    for (const a of document.querySelectorAll(`.tree a[href="#${f.id}"]`)) a.classList.add("struck");
+  }
+}
+
+// Find-in-page landing in a closed folder's file opens the folders above it; folding now, not next frame, so the
+// collapsed-files line is gone before the browser scrolls to the match.
+function openFolders(file) {
+  for (const details of document.querySelectorAll("#tree details:not([open])")) {
+    if (file.path.startsWith(details.dataset.path + "/")) details.open = true;
+  }
+  foldFiles();
+}
+
+let foldFrame = 0;
+const scheduleFold = () => {
+  cancelAnimationFrame(foldFrame);
+  foldFrame = requestAnimationFrame(foldFiles);
+};
+
+let showTests = false;
+let showDeleted = false;
+
+// config.jsonc's tests: globs matched from any folder, like .gitignore. * stays within a name, ** spans folders, and a
+// glob ending in /** or /**/* also names test folders.
+function globRegex(glob) {
+  const segs = glob.replace(/^\/+|\/+$/g, "").split("/").map((s) => (s === "**" ? "\0" : s.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]")));
+  return new RegExp(`(?:^|/)${segs.join("/").replace(/\0\//g, "(?:.*/)?").replace(/\/\0/g, "(?:/.*)?").replace(/\0/g, ".*")}$`);
+}
+const testFiles = SETTINGS.tests.map(globRegex);
+const testFolders = SETTINGS.tests.filter((g) => /\/\*\*(\/\*)?$/.test(g)).map((g) => globRegex(g.replace(/\/\*\*(\/\*)?$/, "")));
+const isTestFolder = (path) => testFolders.some((re) => re.test(path));
+const inTestFolder = (path) => path.split("/").slice(0, -1).some((_, i, parts) => isTestFolder(parts.slice(0, i + 1).join("/")));
+
+const folderOpen = (path) => showTests || !isTestFolder(path);
+// Files in test folders hide with the folder; other test files and deleted files fold to their header instead.
+const startsCollapsed = (file) => (file.looseTest && !showTests) || (file.status === "removed" && !showDeleted);
+
+function toolButton(icon, onclick) {
+  const button = h("button", { type: "button", onclick }, h("span", { className: `icon i-${icon}` }));
+  button.setIcon = (name, label) => {
+    button.firstChild.className = `icon i-${name}`;
+    button.title = label;
+    button.ariaLabel = label;
+  };
+  return button;
+}
+
+const allButton = toolButton("unfold", () => {
+  const details = [...document.querySelectorAll("#tree details")];
+  const open = details.some((d) => !d.open);
+  for (const d of details) d.open = open;
+  scheduleFold();
+});
+const testsButton = toolButton("beaker", () => {
+  showTests = !showTests;
+  for (const d of document.querySelectorAll("#tree details")) if (isTestFolder(d.dataset.path)) d.open = showTests;
+  applyToggles();
+});
+const deletedButton = toolButton("trash", () => {
+  showDeleted = !showDeleted;
+  applyToggles();
+});
+const modeBar = h("div", { className: "tree-modes" }, allButton, testsButton, deletedButton);
+
+function applyToggles() {
+  for (const f of shownFiles) f.setCollapsed?.(startsCollapsed(f));
+  scheduleFold();
+}
+
+function syncToolbar() {
+  const anyClosed = [...document.querySelectorAll("#tree details")].some((d) => !d.open);
+  allButton.setIcon(anyClosed ? "unfold" : "fold", anyClosed ? "Open all folders" : "Close all folders");
+  testsButton.setIcon("beaker", showTests ? "Hide tests" : "Show tests");
+  testsButton.classList.toggle("on", showTests);
+  deletedButton.setIcon("trash", showDeleted ? "Hide deleted files" : "Show deleted files");
+  deletedButton.classList.toggle("on", showDeleted);
+}
+
+function renderTree(node, prefix = "") {
+  const { dirs, files } = sortedChildren(node);
+  return h("ul", {},
+    ...dirs.map((d) => {
+      const path = prefix ? `${prefix}/${d.name}` : d.name;
+      const details = h("details", { open: keep ? !keep.closed.has(path) : folderOpen(path) }, h("summary", {}, d.name), renderTree(d, path));
+      details.dataset.path = path;
+      details.addEventListener("toggle", scheduleFold);
+      return h("li", {}, details);
+    }),
+    ...files.map((f) => h("li", {}, h("a", { href: `#${f.id}`, title: f.path },
+      h("span", { className: `badge ${f.status}`, textContent: LETTER[f.status] }),
+      h("span", { textContent: f.path.split("/").pop() })))),
+  );
+}
+
+// Git hunk starts are off by one when a side has zero lines, so gaps are measured from where the hunk's new lines would begin.
+function wholeFileLines(file, content) {
+  const src = content.split("\n");
+  if (src.at(-1) === "") src.pop();
+  const out = [];
+  let pos = 1;
+  let delta = 0;
+  const gap = (end) => {
+    for (; pos <= end; pos++) out.push({ kind: "ctx", old: pos + delta, new: pos, text: src[pos - 1] });
+  };
+  for (const hunk of file.hunks) {
+    const start = hunk.newCount ? hunk.newStart : hunk.newStart + 1;
+    gap(start - 1);
+    out.push(...hunk.lines);
+    pos = start + hunk.newCount;
+    delta += hunk.oldCount - hunk.newCount;
+  }
+  gap(src.length);
+  return out;
+}
+
+// Pairs each removed line with the added line at the same position in the following run, then trims the shared prefix and suffix.
+function changedRanges(lines) {
+  const ranges = new Map();
+  for (let i = 0; i < lines.length; ) {
+    if (lines[i].kind !== "del") { i++; continue; }
+    let adds = i;
+    while (lines[adds]?.kind === "del") adds++;
+    let end = adds;
+    while (lines[end]?.kind === "add") end++;
+    for (let k = 0; k < Math.min(adds - i, end - adds); k++) {
+      const del = lines[i + k];
+      const add = lines[adds + k];
+      const a = del.text;
+      const b = add.text;
+      let pre = 0;
+      while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+      let suf = 0;
+      while (suf < a.length - pre && suf < b.length - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+      if (!pre && !suf) continue;
+      if (a.length - suf > pre) ranges.set(del, [pre, a.length - suf]);
+      if (b.length - suf > pre) ranges.set(add, [pre, b.length - suf]);
+    }
+    i = end;
+  }
+  return ranges;
+}
+
+function markRange(td, start, end) {
+  const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  let pos = 0;
+  for (const node of nodes) {
+    const from = Math.max(start - pos, 0);
+    const to = Math.min(end - pos, node.length);
+    pos += node.length;
+    if (from >= to) continue;
+    if (to < node.length) node.splitText(to);
+    const target = from ? node.splitText(from) : node;
+    const mark = h("span", { className: "chg" });
+    target.replaceWith(mark);
+    mark.append(target);
+  }
+}
+
+function rowsHtml(file, segments) {
+  let html = "";
+  for (const seg of segments) {
+    if (seg.header) html += `<tr class="hunk"><td colspan="3">${esc(seg.header)}</td></tr>`;
+    const ranges = changedRanges(seg.lines);
+    const open = file.status === "removed" ? "" : " data-open";
+    for (const l of seg.lines) {
+      html += `<tr class="${l.kind}"${open}><td class="num">${l.old ?? ""}</td><td class="num">${l.new ?? ""}</td><td class="code"${ranges.has(l) ? ` data-chg="${ranges.get(l)}"` : ""}>${esc(l.text)}</td></tr>`;
+    }
+  }
+  return html;
+}
+
+// GitHub-style pairing: each removed run sits beside the added run that follows it, padded with empty cells.
+function splitRowsHtml(file, segments) {
+  const open = file.status === "removed" ? "" : " data-open";
+  const side = (l, n, ranges) => l
+    ? `<td class="num ${l.kind}">${n}</td><td class="code ${l.kind}"${ranges.has(l) ? ` data-chg="${ranges.get(l)}"` : ""}>${esc(l.text)}</td>`
+    : `<td class="num empty"></td><td class="empty"></td>`;
+  let html = `<colgroup><col class="n"><col><col class="n"><col></colgroup>`;
+  for (const seg of segments) {
+    if (seg.header) html += `<tr class="hunk"><td colspan="4">${esc(seg.header)}</td></tr>`;
+    const ranges = changedRanges(seg.lines);
+    const lines = seg.lines;
+    for (let i = 0; i < lines.length; ) {
+      if (lines[i].kind === "ctx") {
+        html += `<tr${open}>${side(lines[i], lines[i].old, ranges)}${side(lines[i], lines[i].new, ranges)}</tr>`;
+        i++;
+        continue;
+      }
+      const dels = [];
+      const adds = [];
+      while (lines[i]?.kind === "del") dels.push(lines[i++]);
+      while (lines[i]?.kind === "add") adds.push(lines[i++]);
+      for (let k = 0; k < Math.max(dels.length, adds.length); k++) {
+        html += `<tr${open}>${side(dels[k], dels[k]?.old, ranges)}${side(adds[k], adds[k]?.new, ranges)}</tr>`;
+      }
+    }
+  }
+  return html;
+}
+
+const wide = matchMedia("(min-width: 1200px)");
+wide.addEventListener("change", () => {
+  for (const file of shownFiles) if (file.card.querySelector(".body table")) renderBody(file);
+});
+
+function renderBody(file) {
+  const body = file.card.querySelector(".body");
+  if (file.binary) return body.replaceChildren(h("div", { className: "note", textContent: "Binary file" }));
+  if (!file.hunks.length) return body.replaceChildren(h("div", { className: "note", textContent: file.status === "renamed" ? "File renamed without changes" : "No content changes" }));
+  const segments = file.whole ? [{ lines: wholeFileLines(file, file.whole) }] : file.hunks;
+  const table = h("table", { className: wide.matches ? "diff split" : "diff" });
+  table.innerHTML = wide.matches ? splitRowsHtml(file, segments) : rowsHtml(file, segments);
+  if (file.nearViewport) highlightCode(file, table);
+  markChanges(table);
+  body.replaceChildren(table);
+}
+
+function highlightCode(file, table) {
+  const language = languageOf(file.path);
+  if (!language) return;
+  for (const td of table.querySelectorAll("td.code")) {
+    td.innerHTML = hljs.highlight(td.textContent, { language, ignoreIllegals: true }).value;
+  }
+}
+
+function markChanges(table) {
+  for (const td of table.querySelectorAll("td[data-chg]")) {
+    const [start, end] = td.dataset.chg.split(",").map(Number);
+    markRange(td, start, end);
+  }
+}
+
+// Highlighting is the slow part of a render, so files get it only once they come near the viewport; it rewrites
+// each cell's markup, so the changed-range marks go back on after it.
+const highlightWhenNear = new IntersectionObserver((entries) => {
+  for (const { target, isIntersecting } of entries) {
+    if (!isIntersecting) continue;
+    highlightWhenNear.unobserve(target);
+    target.file.nearViewport = true;
+    const table = target.querySelector("table");
+    if (!table) continue;
+    highlightCode(target.file, table);
+    markChanges(table);
+  }
+}, { rootMargin: "1500px" });
+
+let diffBase = "";
+
+let toastTimer = 0;
+
+function toast(text, error = false) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.className = error ? "error" : "";
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), error ? 8000 : 3000);
+}
+
+// For a PR the server fetches its branch and makes the worktree before it answers.
+async function startLocalClaude(number = null) {
+  if (number) toast(`Starting Claude locally for #${number}…`);
+  const q = new URLSearchParams({ repo: params.get("repo") ?? "", ...(number ? { number } : {}) });
+  const res = await fetch("/api/local-claude?" + q, { method: "POST" }).catch(() => null);
+  if (!res) return toast("code-diff server is not responding", true);
+  const body = await res.json();
+  if (!res.ok) return toast(body.error ?? "Could not start Claude", true);
+  toast(body.focused ? "Switched to its open terminal tab" : body.worktree ? `Opened in terminal: ${body.worktree}` : "Opened in terminal");
+}
+
+// The server answers once the terminal tab is open; the tab itself checks GitHub, makes the worktree and starts Claude.
+// inPlace starts it in the shown VM checkout itself rather than a new worktree.
+async function startVmClaude(number = null, inPlace = false) {
+  toast(number ? `Starting Claude on the VM for #${number}…` : inPlace ? "Starting Claude in this VM checkout…" : "Starting a new agent on the VM…");
+  const q = new URLSearchParams({ repo: params.get("repo") ?? "", ...(number ? { number } : {}), ...(inPlace ? { inPlace: "1" } : {}) });
+  const res = await fetch("/api/vm-claude?" + q, { method: "POST" }).catch(() => null);
+  if (!res) return toast("code-diff server is not responding", true);
+  const body = await res.json();
+  if (!res.ok) return toast(body.error ?? "Could not start Claude on the VM", true);
+  toast(body.focused ? "Switched to its open terminal tab" : inPlace ? `Opened in terminal: ${body.worktree}` : `Opened in terminal: ${SETTINGS.worktreesFolder}/${body.worktree}`);
+}
+
+// The server answers once VS Code has the diff; a remote opens a Remote-SSH window, so its first open can take a while.
+async function openDiffInEditor(file) {
+  const q = new URLSearchParams({ repo: params.get("repo") ?? "", from: params.get("from") ?? "", left: diffBase, path: file.path, old: file.oldPath ?? "" });
+  toast(`Opening ${file.path} in VS Code…`);
+  const res = await fetch("/api/open-diff?" + q, { method: "POST" }).catch(() => null);
+  if (!res) return toast("code-diff server is not responding", true);
+  if (!res.ok) toast((await res.json()).error ?? "Could not open VS Code", true);
+}
+
+async function toggleWholeFile(file, button) {
+  if (file.whole) {
+    file.whole = null;
+  } else {
+    const res = await fetch("/api/file?" + new URLSearchParams({ repo: params.get("repo") ?? "", from: params.get("from") ?? "", path: file.path }));
+    if (!res.ok) return;
+    file.whole = await res.text();
+  }
+  button.textContent = file.whole ? "Collapse" : "Expand";
+  renderBody(file);
+}
+
+function renderFile(file) {
+  const label = file.oldPath ? `${file.oldPath} → ${file.path}` : file.path;
+  const canExpand = !file.binary && file.hunks.length && (file.status === "modified" || file.status === "renamed");
+  const whole = canExpand ? h("button", { className: "whole", type: "button", textContent: "Expand" }) : null;
+  if (whole) whole.onclick = () => toggleWholeFile(file, whole);
+  file.wholeButton = whole;
+  file.github = h("a", { className: "gh", target: "_blank", rel: "noopener", textContent: "GitHub" });
+  file.card = h("section", { className: "file", id: file.id });
+  file.looseTest = testFiles.some((re) => re.test(file.path)) && !inTestFolder(file.path);
+  const fold = file.looseTest || file.status === "removed" ? h("button", { className: "fold", type: "button" }) : null;
+  if (fold) {
+    file.setCollapsed = (collapsed) => {
+      file.card.classList.toggle("collapsed", collapsed);
+      file.card.querySelector(".body").hidden = collapsed ? "until-found" : false;
+      fold.textContent = collapsed ? "▶" : "▼";
+      scheduleFold();
+    };
+    fold.onclick = () => file.setCollapsed(!file.card.classList.contains("collapsed"));
+  }
+  file.card.append(
+    h("div", { className: "head" },
+      fold,
+      whole,
+      h("span", { className: `badge ${file.status}`, textContent: LETTER[file.status] }),
+      file.status === "removed"
+        ? h("span", { className: "path", textContent: label })
+        : h("button", { className: "path", type: "button", title: "Open diff in VS Code", textContent: label, onclick: () => openDiffInEditor(file) }),
+      file.untracked ? h("span", { className: "tag", textContent: "untracked" }) : null,
+      h("span", { className: "stat-add", textContent: `+${file.additions}` }),
+      h("span", { className: "stat-del", textContent: `−${file.deletions}` }),
+      file.github,
+    ),
+    h("div", { className: "body", file, style: `--estimated-h: ${file.hunks.reduce((n, hk) => n + hk.lines.length + 1, 0) * 20}px` }),
+  );
+  const body = file.card.querySelector(".body");
+  body.addEventListener("beforematch", () => file.setCollapsed?.(false));
+  file.card.addEventListener("beforematch", () => openFolders(file));
+  file.setCollapsed?.(keep ? !keep.opened.has(file.path) : startsCollapsed(file));
+  renderBody(file);
+  highlightWhenNear.observe(body);
+  return file.card;
+}
+
+// Set while re-rendering after an edit, so folder, test-file and whole-file state carries over.
+let keep = null;
+
+async function load() {
+  if (!params.get("repo")) return;
+  const main = document.getElementById("files");
+  const prPanel = () => [document.getElementById("pr")].filter(Boolean);
+  if (!keep) main.replaceChildren(...prPanel(), h("div", { className: "note", textContent: "Loading…" }));
+  const res = await fetch("/api/diff?" + params);
+  const data = await res.json();
+  if (!res.ok) {
+    main.replaceChildren(h("div", { id: "error", textContent: data.error }));
+    return;
+  }
+  form.to.value = data.to;
+  if (!data.from) {
+    fromName = `${data.head} + uncommitted`;
+    updatePickerLabel();
+  }
+  diffBase = data.base;
+  data.files.forEach((f, i) => (f.id = `file-${i}`));
+  const tree = buildTree(data.files);
+  const files = treeOrder(tree);
+  github = data.github;
+  shownFiles = files;
+  const add = files.reduce((n, f) => n + f.additions, 0);
+  const del = files.reduce((n, f) => n + f.deletions, 0);
+  document.getElementById("tree").replaceChildren(modeBar, renderTree(tree));
+  if (SETTINGS.depHierarchyPanel) loadDeps(files);
+  const stats = h("div", { id: "stats" }, h("span", {},
+    `${files.length} files · `,
+    h("span", { className: "stat-add", textContent: `+${add}` }), " ",
+    h("span", { className: "stat-del", textContent: `−${del}` })),
+    h("span", { id: "actions" }));
+  main.replaceChildren(stats, ...prPanel(), ...(files.length ? files.map(renderFile) : [h("div", { className: "note", textContent: "No changes" })]));
+  renderActions();
+  linkGithub();
+  showPr();
+  cards = [...document.querySelectorAll(".file")];
+  foldFiles();
+  for (const f of files) if (keep?.whole.has(f.path) && f.wholeButton) toggleWholeFile(f, f.wholeButton);
+  if (!keep && location.hash) document.querySelector(location.hash)?.scrollIntoView();
+  markActive();
+}
+
+let refreshing = false;
+let again = false;
+
+// The first card under the header keeps its screen position; later height changes above it are left to browser scroll anchoring.
+async function refresh() {
+  if (refreshing) return void (again = true);
+  refreshing = true;
+  const anchor = cards.find((c) => c.getBoundingClientRect().bottom > header.offsetHeight);
+  const anchorPath = anchor && shownFiles.find((f) => f.card === anchor)?.path;
+  const anchorTop = anchor?.getBoundingClientRect().top;
+  keep = {
+    closed: new Set([...document.querySelectorAll("#tree details:not([open])")].map((d) => d.dataset.path)),
+    opened: new Set(shownFiles.filter((f) => f.setCollapsed && !f.card.classList.contains("collapsed")).map((f) => f.path)),
+    whole: new Set(shownFiles.filter((f) => f.whole).map((f) => f.path)),
+  };
+  await load();
+  const card = shownFiles.find((f) => f.path === anchorPath)?.card;
+  if (card && !card.hidden) scrollBy(0, card.getBoundingClientRect().top - anchorTop);
+  refreshing = false;
+  if (again) {
+    again = false;
+    refresh();
+  }
+}
+
+if (params.get("repo")) {
+  new EventSource("/api/watch?" + new URLSearchParams({ repo: params.get("repo"), from: params.get("from") ?? "" })).onmessage = refresh;
+}
+
+let cards = [];
+let pinned = false;
+
+// "↑" links are pointers to an entry shown elsewhere, so only a file's main entry in each panel is highlighted and scrolled to.
+function setActive(hash) {
+  const links = document.querySelectorAll(`.tree a[href="${hash}"]:not(.repeat)`);
+  if (!links.length || links[0].classList.contains("active")) return;
+  document.querySelectorAll(".tree a.active").forEach((el) => el.classList.remove("active"));
+  for (const link of links) {
+    link.classList.add("active");
+    link.scrollIntoView({ block: "nearest" });
+  }
+}
+
+// Cards are stacked in order, so the first one whose bottom passes the midline holds it.
+function markActive() {
+  if (pinned || !cards.length) return;
+  const mid = (header.offsetHeight + innerHeight) / 2;
+  let lo = 0;
+  let hi = cards.length - 1;
+  while (lo < hi) {
+    const m = (lo + hi) >> 1;
+    if (cards[m].getBoundingClientRect().bottom < mid) lo = m + 1;
+    else hi = m;
+  }
+  setActive(`#${cards[lo].id}`);
+}
+
+let frame = 0;
+addEventListener("scroll", () => {
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(markActive);
+}, { passive: true });
+
+// A jump to a short file would move the midline onto its neighbour, so a click holds until the user scrolls.
+for (const type of ["wheel", "touchmove", "keydown", "mousedown"]) addEventListener(type, () => (pinned = false), { passive: true });
+
+document.querySelector(".layout").addEventListener("click", (e) => {
+  const a = e.target.closest(".tree a");
+  if (!a) return;
+  pinned = false;
+  setActive(a.hash);
+  pinned = true;
+  const file = shownFiles.find((f) => `#${f.id}` === a.hash);
+  file?.setCollapsed?.(false);
+  file?.card.classList.remove("flash");
+  void file?.card.offsetWidth;
+  file?.card.classList.add("flash");
+});
+document.getElementById("files").addEventListener("click", (e) => {
+  const row = e.target.closest("td.num")?.parentElement;
+  if (!row?.hasAttribute("data-open")) return;
+  openDiffInEditor(row.closest(".file").querySelector(".body").file);
+});
+
+showPr();
+load();
+</script>
+</body>
+</html>
