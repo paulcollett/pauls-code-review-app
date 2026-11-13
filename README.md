@@ -24,7 +24,7 @@
 ## Human setup
 
 ```bash
-claude "set this up"
+claude "checkout https://github.com/paulcollett/pauls-code-review-app, setup and run dev server"
 ```
 
 
